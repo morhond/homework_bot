@@ -70,8 +70,6 @@ def check_response(response):
     return response.get('homeworks')
 
 
-
-
 def parse_status(homework):
     """Извлекает из домашней работы статус этой работы."""
     homework_name = homework['homework_name']
