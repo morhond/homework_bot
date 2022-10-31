@@ -52,12 +52,10 @@ def get_api_answer(current_timestamp):
     return response.json()
 
 
-def check_response(response, bot):
+def check_response(response):
     """Проверяет ответ API на корректность."""
     if type(response) is dict:
         return response.get('homeworks')
-    logger.error(msg='Сбой при запросе к эндпоинту.')
-    send_message(bot, 'Сбой при запросе к эндпоинту.')
     return f'Data type of the response may be incorrect: {type(response)}'
 
 
@@ -104,7 +102,7 @@ def main():
             # Сделать запрос к API.
             response = get_api_answer(current_timestamp)
             # Проверить ответ.
-            homeworks = check_response(response, bot=bot)
+            homeworks = check_response(response)
             # Если есть обновления — получить статус работы из
             # обновления и отправить сообщение в Telegram.
             hw_result = parse_status(homeworks[0])
@@ -127,6 +125,7 @@ def main():
             if error != old_error:
                 send_message(bot, error)
                 old_error = error
+
         except Exception as error:
             if error != old_error:
                 send_message(bot, error)
