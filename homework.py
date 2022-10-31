@@ -2,12 +2,12 @@ import sys
 import time
 import logging
 import os
-
 import requests
+
 import telegram
-from telegram import TelegramError
 
 from dotenv import load_dotenv
+
 
 load_dotenv()
 
@@ -16,7 +16,7 @@ TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 PERIOD_MONTH = 60 * 60 * 24 * 30
-RETRY_TIME = 2  # default 600
+RETRY_TIME = 600  # default 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 
@@ -72,12 +72,9 @@ def parse_status(homework):
             f'{verdict}')
 
 
-
 def check_tokens():
     """Проверяет доступность переменных окружения,
     которые необходимы для работы программы"""
-    # проверка токена бота в другом месте, там она нужнее
-    # если она провалится там, то здесь всё равно ничего не сработает
     if isinstance(PRACTICUM_TOKEN, type(None)):
         logger.critical(msg='Не найден токен API!')
         return False
@@ -102,7 +99,7 @@ def main():
             current_timestamp = current_timestamp - PERIOD_MONTH
             # Проверяем токены. Ошибка в них вызывает лавину ошибок,
             # поэтому их проверяем отдельно и прерываем выполнение программы
-            if check_tokens() == False:
+            if not check_tokens():
                 print('Ошибка токенов, всё пропало!')
                 exit()
             # Назначаем бота
