@@ -38,28 +38,19 @@ logger.addHandler(handler)
 def send_message(bot, message):
     """Отправляет сообщение в Telegram чат,
     определяемый переменной окружения TELEGRAM_CHAT_ID"""
-    try:
-        bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
-        logger.info(
-            msg=f'Отправлено сообщение {message} в чат {TELEGRAM_CHAT_ID}.')
-    except ConnectionError:
-        logger.error(msg='Сбой отправки сообщения, вероятно сбой соединения.')
-    except TelegramError:
-        logger.error(msg='Сбой отправки сообщения.')
+    bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
+    logger.info(
+        msg=f'Отправлено сообщение {message} в чат {TELEGRAM_CHAT_ID}.')
 
 
-def get_api_answer(current_timestamp, bot):
+def get_api_answer(current_timestamp):
     """Делает запрос к единственному эндпоинту API-сервиса"""
-    try:
-        timestamp = current_timestamp or int(time.time())
-        params = {'from_date': timestamp}
-        response = requests.get(ENDPOINT,
-                                headers=HEADERS,
-                                params=params)
-        return response.json()
-    except ConnectionError:
-        logger.error('Недоступность эндпоинта')
-        bot.send_message(chat_id=TELEGRAM_CHAT_ID, text='Недоступность эндпоинта')
+    timestamp = current_timestamp or int(time.time())
+    params = {'from_date': timestamp}
+    response = requests.get(ENDPOINT,
+                            headers=HEADERS,
+                            params=params)
+    return response.json()
 
 
 def check_response(response, bot):
@@ -67,64 +58,62 @@ def check_response(response, bot):
     if type(response) is dict:
         return response.get('homeworks')
     logger.error(msg='Сбой при запросе к эндпоинту.')
-    bot.send_message(chat_id=TELEGRAM_CHAT_ID,
-                     text='Сбой при запросе к эндпоинту.')
+    send_message(bot, 'Сбой при запросе к эндпоинту.')
     return f'Data type of the response may be incorrect: {type(response)}'
 
 
-def parse_status(homework, bot):
+def parse_status(homework):
     """Извлекает из информации о конкретной домашней
     работе статус этой работы"""
-    try:
-        homework_name = homework['homework_name']
-    except KeyError:
-        logger.error(msg='Отсутствие ожидаемых ключей в ответе API')
-    try:
-        homework_status = homework['status']
-        verdict = HOMEWORK_STATUSES[homework_status]
-        return f'Изменился статус проверки работы "{homework_name}". {verdict}'
-    except KeyError:
-        logger.error(msg='Недокументированный статус домашней работы,'
-                         'обнаруженный в ответе API')
-        bot.send_message(chat_id=TELEGRAM_CHAT_ID,
-                         text='Недокументированный статус домашней работы,'
-                         'обнаруженный в ответе API')
+    homework_name = homework['homework_name']
+    homework_status = homework['status']
+    verdict = HOMEWORK_STATUSES[homework_status]
+    return (f'Изменился статус проверки работы "{homework_name}".'
+            f'{verdict}')
 
 
-def check_tokens(bot):
+
+def check_tokens():
     """Проверяет доступность переменных окружения,
     которые необходимы для работы программы"""
-    if (
-            isinstance(PRACTICUM_TOKEN, type(None)) or
-            isinstance(TELEGRAM_TOKEN, type(None)) or
-            isinstance(TELEGRAM_CHAT_ID, type(None))
-    ):
-        logger.critical(msg='Не найден один из токенов!')
-        bot.send_message(chat_id=TELEGRAM_CHAT_ID,
-                         text='Не найден один из токенов!')
+    # проверка токена бота в другом месте, там она нужнее
+    # если она провалится там, то здесь всё равно ничего не сработает
+    if isinstance(PRACTICUM_TOKEN, type(None)):
+        logger.critical(msg='Не найден токен API!')
+        return False
+    if isinstance(TELEGRAM_TOKEN, type(None)):
+        logger.critical(msg='Не найден токен бота Telegram!')
+        return False
+    if isinstance(TELEGRAM_CHAT_ID, type(None)):
+        logger.critical(msg='Не найден токен чата Telegram!')
         return False
     return True
 
 
 def main():
     """Основная логика работы бота."""
-    bot = telegram.Bot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time())
     old_status = ''
+    old_error = ''
 
     while True:
         try:
             # Выбираем временной период
             current_timestamp = current_timestamp - PERIOD_MONTH
-            # Проверяем токены.
-            check_tokens(bot=bot)
+            # Проверяем токены. Ошибка в них вызывает лавину ошибок,
+            # поэтому их проверяем отдельно и прерываем выполнение программы
+            if check_tokens() == False:
+                print('Ошибка токенов, всё пропало!')
+                exit()
+            # Назначаем бота
+            bot = telegram.Bot(token=TELEGRAM_TOKEN)
             # Сделать запрос к API.
-            response = get_api_answer(current_timestamp, bot=bot)
+            response = get_api_answer(current_timestamp)
             # Проверить ответ.
             homeworks = check_response(response, bot=bot)
             # Если есть обновления — получить статус работы из
             # обновления и отправить сообщение в Telegram.
-            hw_result = parse_status(homeworks[0], bot=bot)
+            hw_result = parse_status(homeworks[0])
 
             if hw_result == old_status:
                 logger.debug('В ответе нет новых статусов')
@@ -133,16 +122,27 @@ def main():
                 send_message(bot=bot, message=hw_result)
                 old_status = hw_result
 
-            time.sleep(RETRY_TIME)
-
+        except TypeError as error:
+            logger.critical(f'{error}')
+        except UnboundLocalError as error:
+            logger.critical(error)
+        except ConnectionError as error:
+            logger.error(error)
+        except KeyError as error:
+            logger.error(f'{error}, вероятно что-то не так с ответом API.')
+            if error != old_error:
+                send_message(bot, error)
+                old_error = error
         except Exception as error:
-            message = f'Сбой в работе программы: {error}'
+            if error != old_error:
+                send_message(bot, error)
+                old_error = error
+            message = f'{error}'
             print(message)
-            logging.error(f'Сбой в работе программы: {error}')
-            time.sleep(RETRY_TIME)
+            logging.error(f'{error}')
+
         else:
-            # выполняется в случае, если не срабатывает исключение
-            print('Why is it here?')
+            time.sleep(RETRY_TIME)
 
 
 if __name__ == '__main__':
