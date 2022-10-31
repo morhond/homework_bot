@@ -36,8 +36,7 @@ logger.addHandler(handler)
 
 
 def send_message(bot, message):
-    """Отправляет сообщение в Telegram чат,
-    определяемый переменной окружения TELEGRAM_CHAT_ID"""
+    """Отправляет сообщение в Telegram чат."""
     bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
     logger.info(
         msg=f'Отправлено сообщение {message} в чат {TELEGRAM_CHAT_ID}.')
@@ -54,7 +53,7 @@ def get_api_answer(current_timestamp):
 
 
 def check_response(response, bot):
-    """Проверяет ответ API на корректность"""
+    """Проверяет ответ API на корректность."""
     if type(response) is dict:
         return response.get('homeworks')
     logger.error(msg='Сбой при запросе к эндпоинту.')
@@ -63,8 +62,7 @@ def check_response(response, bot):
 
 
 def parse_status(homework):
-    """Извлекает из информации о конкретной домашней
-    работе статус этой работы"""
+    """Извлекает из домашней работы статус этой работы."""
     homework_name = homework['homework_name']
     homework_status = homework['status']
     verdict = HOMEWORK_STATUSES[homework_status]
@@ -73,8 +71,7 @@ def parse_status(homework):
 
 
 def check_tokens():
-    """Проверяет доступность переменных окружения,
-    которые необходимы для работы программы"""
+    """Проверяет доступность переменных окружения."""
     if isinstance(PRACTICUM_TOKEN, type(None)):
         logger.critical(msg='Не найден токен API!')
         return False
