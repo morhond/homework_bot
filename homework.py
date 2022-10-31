@@ -127,18 +127,6 @@ def main():
                 send_message(bot=bot, message=hw_result)
                 old_status = hw_result
 
-        except TypeError as error:
-            logger.critical(f'{error}')
-        except UnboundLocalError as error:
-            logger.critical(error)
-        except ConnectionError as error:
-            logger.error(error)
-        except KeyError as error:
-            logger.error(f'{error}, вероятно что-то не так с ответом API.')
-            if error != old_error:
-                send_message(bot, error)
-                old_error = error
-
         except Exception as error:
             if error != old_error:
                 send_message(bot, error)
