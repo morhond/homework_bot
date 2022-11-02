@@ -55,16 +55,22 @@ def get_api_answer(current_timestamp):  # добавить проверку на
         response = requests.get(ENDPOINT,
                                 headers=HEADERS,
                                 params=params)
-        #response_json = response.json()
-        #if set(response_json.keys()) == {'error', 'code'}:  # AttributeError: 'list' object has no attribute 'keys'
-        #    raise custom_exceptions.CustomException('Alles kaputt!')
+        # --- это не работает ---
+        # response_json = response.json()
+        # if set(response_json.keys()) == {'error', 'code'}:  # AttributeError: 'list' object has no attribute 'keys'
+        #     raise custom_exceptions.CustomException('Alles kaputt!')
         # raise ResponseException(...)
+        # --------------------
+
         if response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR:
             logger.error('Внутренняя ошибка API (код 500).')
             raise custom_exceptions.CustomException('Внутренняя ошибка API (код 500).')
+        if response.status_code == HTTPStatus.REQUEST_TIMEOUT:
+            logger.error('Ошибка API (TIMEOUT).')
+            raise custom_exceptions.CustomException('Ошибка API (TIMEOUT).')
         # --- это работает ---
-        #if response.status_code != HTTPStatus.OK:
-        #    raise Exception('Проблемы с подключением к API.')
+        # if response.status_code != HTTPStatus.OK:
+        #     raise Exception('Проблемы с подключением к API.')
         # --------------------
     except ConnectionError as error:
         logger.error(error)
