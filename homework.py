@@ -3,12 +3,12 @@ import time
 import logging
 import os
 import requests
-
-
 import telegram
-from http import HTTPStatus
 
+from http import HTTPStatus
 from dotenv import load_dotenv
+
+import custom_exceptions
 
 
 load_dotenv()
@@ -39,35 +39,56 @@ logger.addHandler(handler)
 
 def send_message(bot, message):
     """Отправляет сообщение в Telegram чат."""
-    bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
-    logger.info(
-        msg=f'Отправлено сообщение {message} в чат {TELEGRAM_CHAT_ID}.')
+    try:
+        bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
+        logger.info(
+            msg=f'Отправлено сообщение {message} в чат {TELEGRAM_CHAT_ID}.')
+    except telegram.TelegramError as error:
+        logger.error(error)
 
 
-def get_api_answer(current_timestamp):
+def get_api_answer(current_timestamp):  # добавить проверку на !=200
     """Делает запрос к единственному эндпоинту API-сервиса."""
     timestamp = current_timestamp or int(time.time())
     params = {'from_date': timestamp}
-    response = requests.get(ENDPOINT,
-                            headers=HEADERS,
-                            params=params)
-    if response.status_code != HTTPStatus.OK:
-        raise Exception('Проблемы с подключением к API.')
+    try:
+        response = requests.get(ENDPOINT,
+                                headers=HEADERS,
+                                params=params)
+        #response_json = response.json()
+        #if set(response_json.keys()) == {'error', 'code'}:  # AttributeError: 'list' object has no attribute 'keys'
+        #    raise custom_exceptions.CustomException('Alles kaputt!')
+        # raise ResponseException(...)
+        if response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR:
+            logger.error('Внутренняя ошибка API (код 500).')
+            raise custom_exceptions.CustomException('Внутренняя ошибка API (код 500).')
+        # --- это работает ---
+        #if response.status_code != HTTPStatus.OK:
+        #    raise Exception('Проблемы с подключением к API.')
+        # --------------------
+    except ConnectionError as error:
+        logger.error(error)
+    except requests.exceptions.HTTPError as error:
+        logger.error(error)
+    except requests.exceptions.TooManyRedirects as error:
+        logger.error(error)
+    except TimeoutError as error:
+        logger.error(error)
     return response.json()
 
 
 def check_response(response):
     """Проверяет ответ API на корректность."""
-    if type(response) is not dict:
+    if not isinstance(response, dict):
         logger.error('Неверный тип данных в ответе API.')
         raise TypeError()
-    if type(response.get('homeworks')) is not list:
-        logger.error('Неверный тип данных в ответе API.')
+    if not isinstance(response.get('homeworks'), list):
+        logger.error('Неверный тип данных в ответе API по ключу "homeworks".')
         raise TypeError()
-    if not response.get('homeworks'):
-        logger.error('Информация о домашке некорректная.')
-        raise Exception('Информация о домашке некорректная.')
-    return response.get('homeworks')
+    try:
+        return response.get('homeworks')
+    except KeyError as error:
+        logger.error(error)
 
 
 def parse_status(homework):
@@ -101,6 +122,8 @@ def main():
 
     while True:
         try:
+            # Назначаем бота
+            bot = telegram.Bot(token=TELEGRAM_TOKEN)
             # Выбираем временной период
             current_timestamp = current_timestamp - PERIOD_MONTH
             # Проверяем токены. Ошибка в них вызывает лавину ошибок,
@@ -108,12 +131,10 @@ def main():
             if not check_tokens():
                 print('Ошибка токенов, всё пропало!')
                 exit()
-            # Назначаем бота
-            bot = telegram.Bot(token=TELEGRAM_TOKEN)
             # Сделать запрос к API.
             response = get_api_answer(current_timestamp)
             # Проверить ответ.
-            homeworks = check_response(response, bot=bot)
+            homeworks = check_response(response)
             # Если есть обновления — получить статус работы из
             # обновления и отправить сообщение в Telegram.
             hw_result = parse_status(homeworks[0])
