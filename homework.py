@@ -57,14 +57,17 @@ def get_api_answer(current_timestamp):  # добавить проверку на
                                 params=params)
         # --- это не работает ---
         # response_json = response.json()
-        # if set(response_json.keys()) == {'error', 'code'}:  # AttributeError: 'list' object has no attribute 'keys'
+        # if set(response_json.keys()) == {'error', 'code'}: # ругается на
+        # AttributeError: 'list' object has no attribute 'keys'
+        # но это абсолютная чушь, response_json это словарь, я проверял
         #     raise custom_exceptions.CustomException('Alles kaputt!')
         # raise ResponseException(...)
         # --------------------
 
         if response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR:
             logger.error('Внутренняя ошибка API (код 500).')
-            raise custom_exceptions.CustomException('Внутренняя ошибка API (код 500).')
+            raise custom_exceptions.CustomException(
+                'Внутренняя ошибка API (код 500).')
         if response.status_code == HTTPStatus.REQUEST_TIMEOUT:
             logger.error('Ошибка API (TIMEOUT).')
             raise custom_exceptions.CustomException('Ошибка API (TIMEOUT).')
