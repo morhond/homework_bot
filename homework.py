@@ -8,7 +8,7 @@ import telegram
 from http import HTTPStatus
 from dotenv import load_dotenv
 
-import custom_exceptions
+import exceptions
 
 
 load_dotenv()
@@ -18,9 +18,9 @@ TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 PERIOD_MONTH = 60 * 60 * 24 * 30
-RETRY_TIME = 600  # default 600
+RETRY_TIME = 60 * 10  # in seconds, default 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
-HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
+HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}', 'Accept': 'application/json'}
 
 HOMEWORK_STATUSES = {
     'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
@@ -28,10 +28,6 @@ HOMEWORK_STATUSES = {
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
 
-logging.basicConfig(
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    filename='hw_log.log',
-    level=logging.DEBUG)
 handler = logging.StreamHandler(stream=sys.stdout)
 logger = logging.getLogger(__name__)
 logger.addHandler(handler)
@@ -44,7 +40,7 @@ def send_message(bot, message):
         logger.info(
             msg=f'Отправлено сообщение {message} в чат {TELEGRAM_CHAT_ID}.')
     except telegram.TelegramError as error:
-        logger.error(error)
+        logger.exception(error)
 
 
 def get_api_answer(current_timestamp):  # добавить проверку на !=200
@@ -66,45 +62,57 @@ def get_api_answer(current_timestamp):  # добавить проверку на
 
         if response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR:
             logger.error('Внутренняя ошибка API (код 500).')
-            raise custom_exceptions.CustomException(
+            raise exceptions.CustomException(
                 'Внутренняя ошибка API (код 500).')
         if response.status_code == HTTPStatus.REQUEST_TIMEOUT:
             logger.error('Ошибка API (TIMEOUT).')
-            raise custom_exceptions.CustomException('Ошибка API (TIMEOUT).')
+            raise exceptions.CustomException('Ошибка API (TIMEOUT).')
+
         # --- это работает ---
         # if response.status_code != HTTPStatus.OK:
         #     raise Exception('Проблемы с подключением к API.')
         # --------------------
-    except ConnectionError as error:
-        logger.error(error)
-    except requests.exceptions.HTTPError as error:
-        logger.error(error)
-    except requests.exceptions.TooManyRedirects as error:
-        logger.error(error)
-    except TimeoutError as error:
-        logger.error(error)
+
+    except requests.exceptions.RequestException as error:
+        logger.exception(error)
+    #except ConnectionError as error:
+    #    logger.exception(error)
+    #except requests.exceptions.HTTPError as error:
+    #    logger.exception(error)
+    #except requests.exceptions.TooManyRedirects as error:
+    #    logger.exception(error)
+    #except TimeoutError as error:
+    #    logger.exception(error)
     return response.json()
 
 
 def check_response(response):
     """Проверяет ответ API на корректность."""
+    # проверяем ответ API на TypeError
     if not isinstance(response, dict):
-        logger.error('Неверный тип данных в ответе API.')
+        logger.exception('Неверный тип данных в ответе API.')
         raise TypeError()
-    if not isinstance(response.get('homeworks'), list):
-        logger.error('Неверный тип данных в ответе API по ключу "homeworks".')
-        raise TypeError()
+    # проверяем полученный словарь на KeyError
     try:
-        return response.get('homeworks')
+        response.get('homeworks')
     except KeyError as error:
-        logger.error(error)
+        logger.exception(error)
+    # если KeyError не случился, проверяем на TypeError содержимое словаря
+    if not isinstance(response.get('homeworks'), list):
+        logger.exception('Неверный тип данных в ответе API по ключу "homeworks".')
+        raise TypeError()
+    return response.get('homeworks')
+
 
 
 def parse_status(homework):
     """Извлекает из домашней работы статус этой работы."""
     homework_name = homework['homework_name']
     homework_status = homework['status']
-    verdict = HOMEWORK_STATUSES[homework_status]
+    try:
+        verdict = HOMEWORK_STATUSES[homework_status]
+    except KeyError as error:
+        logger.exception(error)
     return (f'Изменился статус проверки работы "{homework_name}".'
             f'{verdict}')
 
@@ -125,6 +133,10 @@ def check_tokens():
 
 def main():
     """Основная логика работы бота."""
+    logging.basicConfig(
+        format='%(asctime)s [%(levelname)s] %(message)s',
+        filename='hw_log.log',
+        level=logging.DEBUG)
     current_timestamp = int(time.time())
     old_status = ''
     old_error = ''
@@ -139,7 +151,7 @@ def main():
             # поэтому их проверяем отдельно и прерываем выполнение программы
             if not check_tokens():
                 print('Ошибка токенов, всё пропало!')
-                exit()
+                return 0
             # Сделать запрос к API.
             response = get_api_answer(current_timestamp)
             # Проверить ответ.
@@ -163,7 +175,7 @@ def main():
             print(message)
             logging.error(f'{error}')
 
-        else:
+        finally:
             time.sleep(RETRY_TIME)
 
 
