@@ -76,10 +76,10 @@ def check_response(response):
         logger.exception(error)
     # если KeyError не случился, проверяем на TypeError содержимое словаря
     if not isinstance(response.get('homeworks'), list):
-        logger.exception('Неверный тип данных в ответе API по ключу "homeworks".')
+        logger.exception(
+            'Неверный тип данных в ответе API по ключу "homeworks".')
         raise TypeError()
     return response.get('homeworks')
-
 
 
 def parse_status(homework):
