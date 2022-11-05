@@ -7,7 +7,7 @@ import telegram
 
 from http import HTTPStatus
 from dotenv import load_dotenv
-
+from requests import RequestException
 import exceptions
 
 
@@ -16,11 +16,16 @@ load_dotenv()
 PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
+TOKEN_NAMES = ('PRACTICUM_TOKEN',
+               'TELEGRAM_TOKEN',
+               'TELEGRAM_CHAT_ID')
 
 PERIOD_MONTH = 60 * 60 * 24 * 30
 RETRY_TIME = 60 * 10  # in seconds, default 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
-HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}', 'Accept': 'application/json'}
+HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}',
+           'Accept': 'application/json'
+           }
 
 HOMEWORK_STATUSES = {
     'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
@@ -43,46 +48,18 @@ def send_message(bot, message):
         logger.exception(error)
 
 
-def get_api_answer(current_timestamp):  # добавить проверку на !=200
+def get_api_answer(current_timestamp):
     """Делает запрос к единственному эндпоинту API-сервиса."""
     timestamp = current_timestamp or int(time.time())
     params = {'from_date': timestamp}
-    try:
-        response = requests.get(ENDPOINT,
-                                headers=HEADERS,
-                                params=params)
-        # --- это не работает ---
-        # response_json = response.json()
-        # if set(response_json.keys()) == {'error', 'code'}: # ругается на
-        # AttributeError: 'list' object has no attribute 'keys'
-        # но это абсолютная чушь, response_json это словарь, я проверял
-        #     raise custom_exceptions.CustomException('Alles kaputt!')
-        # raise ResponseException(...)
-        # --------------------
-
-        if response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR:
-            logger.error('Внутренняя ошибка API (код 500).')
-            raise exceptions.CustomException(
-                'Внутренняя ошибка API (код 500).')
-        if response.status_code == HTTPStatus.REQUEST_TIMEOUT:
-            logger.error('Ошибка API (TIMEOUT).')
-            raise exceptions.CustomException('Ошибка API (TIMEOUT).')
-
-        # --- это работает ---
-        # if response.status_code != HTTPStatus.OK:
-        #     raise Exception('Проблемы с подключением к API.')
-        # --------------------
-
-    except requests.exceptions.RequestException as error:
-        logger.exception(error)
-    #except ConnectionError as error:
-    #    logger.exception(error)
-    #except requests.exceptions.HTTPError as error:
-    #    logger.exception(error)
-    #except requests.exceptions.TooManyRedirects as error:
-    #    logger.exception(error)
-    #except TimeoutError as error:
-    #    logger.exception(error)
+    response = requests.get(ENDPOINT,
+                            headers=HEADERS,
+                            params=params)
+    response_json = response.json()
+    if set(response_json.keys()) == {'error', 'code'}:
+        raise exceptions.ServiceDenial('Некорректный ответ API.')
+    if response.status_code != HTTPStatus.OK:
+        raise RequestException('Проблемы с подключением к API.')
     return response.json()
 
 
@@ -119,15 +96,10 @@ def parse_status(homework):
 
 def check_tokens():
     """Проверяет доступность переменных окружения."""
-    if isinstance(PRACTICUM_TOKEN, type(None)):
-        logger.critical(msg='Не найден токен API!')
-        return False
-    if isinstance(TELEGRAM_TOKEN, type(None)):
-        logger.critical(msg='Не найден токен бота Telegram!')
-        return False
-    if isinstance(TELEGRAM_CHAT_ID, type(None)):
-        logger.critical(msg='Не найден токен чата Telegram!')
-        return False
+    for token in TOKEN_NAMES:
+        if not globals()[token]:
+            logger.critical(msg='Не найден токен API!')
+            return False
     return True
 
 

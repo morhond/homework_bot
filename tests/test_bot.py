@@ -511,7 +511,7 @@ class TestHomework:
             )
 
             def valid_response_json():
-                data = [{
+                data = {  # убрал внешнюю [
                     "homeworks": [
                         {
                             'homework_name': 'hw123',
@@ -519,7 +519,7 @@ class TestHomework:
                         }
                     ],
                     "current_date": random_timestamp
-                }]
+                }  # убрал внешнюю ]
                 return data
 
             response.json = valid_response_json
