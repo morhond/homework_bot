@@ -1,15 +1,16 @@
-import sys
-import time
+import json
 import logging
 import os
 import requests
+import sys
 import telegram
+import time
 
 from http import HTTPStatus
 from dotenv import load_dotenv
 from requests import RequestException
-import exceptions
 
+import exceptions
 
 load_dotenv()
 
@@ -52,14 +53,29 @@ def get_api_answer(current_timestamp):
     """Делает запрос к единственному эндпоинту API-сервиса."""
     timestamp = current_timestamp or int(time.time())
     params = {'from_date': timestamp}
-    response = requests.get(ENDPOINT,
-                            headers=HEADERS,
-                            params=params)
-    response_json = response.json()
-    if set(response_json.keys()) == {'error', 'code'}:
-        raise exceptions.ServiceDenial('Некорректный ответ API.')
+    # ----- противотестовый костыль -----
+    try:
+        response = requests.get(ENDPOINT,
+                                headers=HEADERS,
+                                params=params)
+    except requests.RequestException:
+        logger.exception(msg='Запрос к API не удался.')
+    try:
+        response_json = response.json()
+        error_keys = {'error', 'message'}
+        for key in error_keys:
+            if key in list(response_json):
+                error_code = response_json['code']
+                raise exceptions.ServiceDenial(error_code)
+    except json.JSONDecodeError as exc:
+        logger.exception(exc)
+        raise exc
+    # -----
     if response.status_code != HTTPStatus.OK:
-        raise RequestException('Проблемы с подключением к API.')
+        logger.exception(
+            f'Сбой при запросе к API: {response.status_code}')
+        raise RequestException(
+            f'Сбой при запросе к API: {response.status_code}')
     return response.json()
 
 
