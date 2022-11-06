@@ -76,7 +76,7 @@ def get_api_answer(current_timestamp):
     if response.status_code != HTTPStatus.OK:
         logger.exception(
             f'Сбой при запросе к API: {response.status_code}')
-        raise RequestException(
+        raise exceptions.ServiceDenial(
             f'Сбой при запросе к API: {response.status_code}')
     return response.json()
 
