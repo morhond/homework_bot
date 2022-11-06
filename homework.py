@@ -101,7 +101,7 @@ def check_response(response):
             'Неверный тип данных в ответе API по ключу "homeworks".')
         raise TypeError(
             'Неверный тип данных в ответе API по ключу "homeworks".')
-    return response.get('homeworks')
+    return hw_response
 
 
 def parse_status(homework):
