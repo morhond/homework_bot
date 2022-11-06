@@ -8,7 +8,6 @@ import time
 
 from http import HTTPStatus
 from dotenv import load_dotenv
-from requests import RequestException
 
 import exceptions
 
@@ -86,20 +85,22 @@ def check_response(response):
     # проверяем ответ API на TypeError
     if not isinstance(response, dict):
         logger.exception(
-            'Неверный тип данных в ответе API. Получен не словарь.')
-        logger.debug(f'Получен {type(response)} вместо словаря.')
-        raise TypeError()
+            f'Неверный тип данных в ответе API.'
+            f'Получен не словарь, а {type(response)}')
+        raise TypeError(
+            f'Неверный тип данных в ответе API.'
+            f'Получен не словарь, а {type(response)}')
     # проверяем полученный словарь на KeyError
-    try:
-        hw_response = response.get('homeworks')
-    except KeyError as error:
-        logger.exception(error)
-        raise
+    if 'homeworks' not in response.keys():
+        logger.debug('В полученном словаре нет ключа "homeworks".')
+        raise KeyError('В полученном словаре нет ключа "homeworks".')
+    hw_response = response.get('homeworks')
     # если KeyError не случился, проверяем на TypeError содержимое словаря
     if not isinstance(hw_response, list):
         logger.exception(
             'Неверный тип данных в ответе API по ключу "homeworks".')
-        raise TypeError()
+        raise TypeError(
+            'Неверный тип данных в ответе API по ключу "homeworks".')
     return response.get('homeworks')
 
 
