@@ -10,3 +10,7 @@ class ServiceDenial(BaseException):
             self.message = (f'Ошибка: {code}, '
                             f'проверьте "headers".')
         super().__init__(self.message)
+
+
+class ResponseException(BaseException):
+    """Неожиданный код ответа."""

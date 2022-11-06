@@ -47,6 +47,7 @@ def send_message(bot, message):
             msg=f'Отправлено сообщение {message} в чат {TELEGRAM_CHAT_ID}.')
     except telegram.TelegramError as error:
         logger.exception(error)
+        logger.debug(f'Ошибка при отправке сообщения {message}')
 
 
 def get_api_answer(current_timestamp):
@@ -60,6 +61,7 @@ def get_api_answer(current_timestamp):
                                 params=params)
     except requests.RequestException:
         logger.exception(msg='Запрос к API не удался.')
+        raise
     try:
         response_json = response.json()
         error_keys = {'error', 'message'}
@@ -83,15 +85,18 @@ def check_response(response):
     """Проверяет ответ API на корректность."""
     # проверяем ответ API на TypeError
     if not isinstance(response, dict):
-        logger.exception('Неверный тип данных в ответе API.')
+        logger.exception(
+            'Неверный тип данных в ответе API. Получен не словарь.')
+        logger.debug(f'Получен {type(response)} вместо словаря.')
         raise TypeError()
     # проверяем полученный словарь на KeyError
     try:
-        response.get('homeworks')
+        hw_response = response.get('homeworks')
     except KeyError as error:
         logger.exception(error)
+        raise
     # если KeyError не случился, проверяем на TypeError содержимое словаря
-    if not isinstance(response.get('homeworks'), list):
+    if not isinstance(hw_response, list):
         logger.exception(
             'Неверный тип данных в ответе API по ключу "homeworks".')
         raise TypeError()
@@ -106,6 +111,7 @@ def parse_status(homework):
         verdict = HOMEWORK_STATUSES[homework_status]
     except KeyError as error:
         logger.exception(error)
+        raise
     return (f'Изменился статус проверки работы "{homework_name}".'
             f'{verdict}')
 
@@ -138,19 +144,21 @@ def main():
             # Проверяем токены. Ошибка в них вызывает лавину ошибок,
             # поэтому их проверяем отдельно и прерываем выполнение программы
             if not check_tokens():
-                print('Ошибка токенов, всё пропало!')
-                return 0
+                logger.debug('Ошибка токенов, всё пропало!')
+                return
             # Сделать запрос к API.
             response = get_api_answer(current_timestamp)
             # Проверить ответ.
             homeworks = check_response(response)
             # Если есть обновления — получить статус работы из
             # обновления и отправить сообщение в Telegram.
-            hw_result = parse_status(homeworks[0])
-
+            try:
+                hw_result = parse_status(homeworks[0])
+            except IndexError as error:
+                logger.exception(error)
+                raise
             if hw_result == old_status:
                 logger.debug('В ответе нет новых статусов')
-                old_status = hw_result
             else:
                 send_message(bot=bot, message=hw_result)
                 old_status = hw_result
@@ -159,8 +167,6 @@ def main():
             if error != old_error:
                 send_message(bot, error)
                 old_error = error
-            message = f'{error}'
-            print(message)
             logging.error(f'{error}')
 
         finally:
