@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 logger.addHandler(handler)
 
 
-def send_message(bot, message):
+def send_message(bot: telegram.Bot, message: str) -> None:
     """Отправляет сообщение в Telegram чат."""
     try:
         bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
@@ -49,7 +49,7 @@ def send_message(bot, message):
         logger.debug(f'Ошибка при отправке сообщения {message}')
 
 
-def get_api_answer(current_timestamp):
+def get_api_answer(current_timestamp: int) -> dict:
     """Делает запрос к единственному эндпоинту API-сервиса."""
     timestamp = current_timestamp or int(time.time())
     params = {'from_date': timestamp}
@@ -80,7 +80,7 @@ def get_api_answer(current_timestamp):
     return response.json()
 
 
-def check_response(response):
+def check_response(response: dict) -> list:
     """Проверяет ответ API на корректность."""
     # проверяем ответ API на TypeError
     if not isinstance(response, dict):
@@ -104,7 +104,7 @@ def check_response(response):
     return hw_response
 
 
-def parse_status(homework):
+def parse_status(homework: dict) -> str:
     """Извлекает из домашней работы статус этой работы."""
     homework_name = homework['homework_name']
     homework_status = homework['status']
@@ -117,7 +117,7 @@ def parse_status(homework):
             f'{verdict}')
 
 
-def check_tokens():
+def check_tokens() -> bool:
     """Проверяет доступность переменных окружения."""
     for token in TOKEN_NAMES:
         if not globals()[token]:
